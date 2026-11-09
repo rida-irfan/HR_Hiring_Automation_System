@@ -68,6 +68,8 @@ class CandidateResponse(BaseModel):
 
 
 # Resume evaluation response
+
+# Resume evaluation response
 class ResumeEvaluationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,6 +78,8 @@ class ResumeEvaluationResponse(BaseModel):
     requisition_id: int
 
     total_score: float
+    overall_score: float
+
     criterion_scores: dict
     evidence: dict
     structured_evidence: Optional[dict] = None
@@ -91,6 +95,28 @@ class ResumeEvaluationResponse(BaseModel):
     model_version: Optional[str] = None
     created_at: datetime
     review_status: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def add_overall_score(cls, data):
+        # Handle SQLAlchemy database objects
+        if not isinstance(data, dict):
+            return {
+                field: getattr(data, field, None)
+                for field in cls.model_fields
+                if field != "overall_score"
+            } | {
+                "overall_score": data.total_score
+            }
+
+        # Handle dictionary responses
+        data = data.copy()
+        data["overall_score"] = data.get(
+            "overall_score",
+            data.get("total_score")
+        )
+
+        return data
 
 
 # HR review request

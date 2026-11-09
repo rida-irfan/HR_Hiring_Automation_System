@@ -3,11 +3,16 @@ from agents.resume_agent import evaluate_resume
 
 # Small sample resume for testing
 resume_text = """
-Technical Skills: Python, SQL
+Technical Skills:
+Python, SQL, Machine Learning
 
 Projects:
-Developed a machine learning model using Python
-and scikit-learn to predict car prices.
+Developed a car price prediction model using Python
+and scikit-learn. Trained a Random Forest Regressor
+and evaluated its performance using MAE and R2 score.
+
+Developed a REST API using FastAPI to serve
+machine learning predictions.
 
 Education:
 Bachelor of Science in Artificial Intelligence.
@@ -18,7 +23,6 @@ job_description = """
 Looking for an AI/ML Engineer with Python,
 Machine Learning, SQL, and FastAPI skills.
 """
-
 # Test rubric
 rubric = {
     "python": {

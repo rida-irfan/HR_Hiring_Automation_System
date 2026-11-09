@@ -1,18 +1,20 @@
 
 import json
+import math
+
 from openai import OpenAI
 
 from services.scoring_service import (
     AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_API_KEY,
-    AZURE_OPENAI_DEPLOYMENT
+    AZURE_OPENAI_DEPLOYMENT,
 )
 
 
 # Connect to Azure OpenAI
 client = OpenAI(
     base_url=AZURE_OPENAI_ENDPOINT.rstrip("/") + "/",
-    api_key=AZURE_OPENAI_API_KEY
+    api_key=AZURE_OPENAI_API_KEY,
 )
 
 
@@ -74,7 +76,11 @@ Rules:
 32. Use "skill_mention" when the resume only lists the
     skill without describing its practical application.
 33. Use "none" when no relevant evidence is available.
-34. Do not treat a skill mention as demonstrated experience.    
+34. Do not treat a skill mention as demonstrated experience.
+35. Only demonstrated_experience can receive a numeric score.
+    For skill_mention or none, return null for the score and
+    an empty evidence_quotes list. Still describe any skill
+    mentions in the evidence explanation.
 """
 
     # Prepare job description, rubric, and resume
@@ -103,14 +109,14 @@ Return a JSON object in this format:
     }},
     "evidence_quotes": {{
         "python": [
-            "Python"
+            "Developed a Python application"
         ],
         "fastapi": []
     }},
     "evidence_quality": {{
-    "python": "demonstrated_experience",
-    "fastapi": "none"
-}},
+        "python": "demonstrated_experience",
+        "fastapi": "none"
+    }},
     "structured_evidence": {{
         "skills": [
             "Python explicitly listed under technical skills"
@@ -138,11 +144,12 @@ Return a JSON object in this format:
 }}
 
 The example values are illustrative only.
+Do not copy example evidence or quotations.
 
 IMPORTANT:
 - Use the exact criterion names provided in the rubric.
-- Include every rubric criterion in criterion_scores, evidence,
-  and evidence_quotes.
+- Include every rubric criterion in criterion_scores,
+  evidence, evidence_quotes, and evidence_quality.
 - Return null when evidence is missing or insufficient.
 - Return missing_or_unclear_items as a list.
 - Use only "not_found" or "uncertain" for item status.
@@ -157,28 +164,28 @@ IMPORTANT:
 - Provide at least one quote for every numeric score.
 - Return an empty quote list for null scores.
 - Never invent quotations.
-- Prefer meaningful excerpts that describe actual work or skills.
+- Prefer meaningful excerpts that describe actual work.
 - Return JSON only.
-- Include evidence_quality for every rubric criterion.
 - Use only skill_mention, demonstrated_experience, or none.
 - Base evidence quality on the resume, not the job description.
+- Repeated keywords alone must not produce numeric scores.
 """
 
-    # Send request to Azure GPT-4.1 mini
+    # Send request to Azure OpenAI
     response = client.chat.completions.create(
         model=AZURE_OPENAI_DEPLOYMENT,
         messages=[
             {
                 "role": "system",
-                "content": system_prompt
+                "content": system_prompt,
             },
             {
                 "role": "user",
-                "content": user_prompt
-            }
+                "content": user_prompt,
+            },
         ],
         response_format={"type": "json_object"},
-        temperature=0
+        temperature=0,
     )
 
     # Convert JSON response into a Python dictionary
@@ -201,39 +208,37 @@ IMPORTANT:
         "evidence_quality",
         "missing_or_unclear_items",
         "warnings",
-        "recommendation_for_human_review"
+        "recommendation_for_human_review",
     }
 
     if not required_keys.issubset(result):
         raise ValueError("AI response is missing required fields.")
 
-    if not isinstance(result["criterion_scores"], dict):
-        raise ValueError("Criterion scores must be a dictionary.")
+    # Validate dictionary fields
+    dictionary_fields = (
+        "criterion_scores",
+        "evidence",
+        "evidence_quotes",
+        "evidence_quality",
+    )
 
-    if not isinstance(result["evidence"], dict):
-        raise ValueError("Evidence must be a dictionary.")
+    for field in dictionary_fields:
+        if not isinstance(result[field], dict):
+            raise ValueError(f"{field} must be a dictionary.")
 
-    if not isinstance(result["warnings"], list):
-        raise ValueError("Warnings must be a list.")
+        if set(result[field]) != set(rubric):
+            raise ValueError(
+                f"{field} criteria do not match the rubric."
+            )
 
-    # Validate rubric criteria
-    if set(result["criterion_scores"]) != set(rubric):
-        raise ValueError(
-            "AI scores do not match rubric criteria."
-        )
-
-    if set(result["evidence"]) != set(rubric):
-        raise ValueError(
-            "AI evidence does not match rubric criteria."
-        )
-
-    # Validate individual scores and evidence
+    # Validate individual scores and explanations
     for criterion, score in result["criterion_scores"].items():
 
         if score is not None:
             if (
                 isinstance(score, bool)
                 or not isinstance(score, (int, float))
+                or not math.isfinite(score)
                 or not 0 <= score <= 100
             ):
                 raise ValueError(
@@ -248,6 +253,9 @@ IMPORTANT:
             )
 
     # Validate warnings
+    if not isinstance(result["warnings"], list):
+        raise ValueError("Warnings must be a list.")
+
     if not all(
         isinstance(warning, str) and warning.strip()
         for warning in result["warnings"]
@@ -257,12 +265,14 @@ IMPORTANT:
         )
 
     # Validate missing or unclear items
-    if not isinstance(result["missing_or_unclear_items"], list):
+    missing_items = result["missing_or_unclear_items"]
+
+    if not isinstance(missing_items, list):
         raise ValueError(
             "Missing or unclear items must be a list."
         )
 
-    for item in result["missing_or_unclear_items"]:
+    for item in missing_items:
 
         if not isinstance(item, dict):
             raise ValueError(
@@ -305,7 +315,7 @@ IMPORTANT:
         "skills",
         "relevant_experience",
         "projects",
-        "education_certifications"
+        "education_certifications",
     }
 
     if not isinstance(structured_evidence, dict):
@@ -313,7 +323,7 @@ IMPORTANT:
             "Structured evidence must be a dictionary."
         )
 
-    if set(structured_evidence.keys()) != required_categories:
+    if set(structured_evidence) != required_categories:
         raise ValueError(
             "Structured evidence categories are incorrect."
         )
@@ -335,21 +345,12 @@ IMPORTANT:
 
     # Validate evidence quality classifications
     evidence_quality = result["evidence_quality"]
-
-    if not isinstance(evidence_quality, dict):
-        raise ValueError(
-            "Evidence quality must be a dictionary."
-        )
-
-    if set(evidence_quality) != set(rubric):
-        raise ValueError(
-            "Evidence quality criteria do not match the rubric."
-        )
+    evidence_quotes = result["evidence_quotes"]
 
     allowed_quality_types = {
         "skill_mention",
         "demonstrated_experience",
-        "none"
+        "none",
     }
 
     for criterion, quality in evidence_quality.items():
@@ -359,46 +360,32 @@ IMPORTANT:
                 f"Invalid evidence quality for {criterion}: {quality}"
             )
 
-        score = result["criterion_scores"][criterion]
-        quotes = result["evidence_quotes"][criterion]
-
-        if quality == "none" and score is not None:
-            raise ValueError(
-                f"{criterion} cannot have a score without evidence."
-            )
-
-        if quality == "none" and quotes:
-            raise ValueError(
-                f"{criterion} has quotes but no evidence quality."
-            )
-
-        if quality != "none" and score is None:
-            raise ValueError(
-                f"{criterion} has evidence quality but no score."
-            )
-
-    # Verify exact quotations against extracted resume text
-    evidence_quotes = result["evidence_quotes"]
-
-    if not isinstance(evidence_quotes, dict):
-        raise ValueError(
-            "Evidence quotes must be a dictionary."
-        )
-
-    if set(evidence_quotes) != set(rubric):
-        raise ValueError(
-            "Evidence quote criteria do not match the rubric."
-        )
-
-    # Normalize whitespace while preserving original words
-    normalized_resume = " ".join(resume_text.split())
-
-    for criterion, quotes in evidence_quotes.items():
+        # Validate quotes before applying scoring policy
+        quotes = evidence_quotes[criterion]
 
         if not isinstance(quotes, list):
             raise ValueError(
                 f"Evidence quotes for {criterion} must be a list."
             )
+
+        if not all(
+            isinstance(quote, str) and quote.strip()
+            for quote in quotes
+        ):
+            raise ValueError(
+                f"Invalid evidence quote for {criterion}."
+            )
+
+        # Keyword-only evidence cannot receive numeric scores.
+        # Keep the evidence explanation for HR review.
+        if quality in ("none", "skill_mention"):
+            result["criterion_scores"][criterion] = None
+            evidence_quotes[criterion] = []
+
+    # Verify exact quotations against extracted resume text
+    normalized_resume = " ".join(resume_text.split())
+
+    for criterion, quotes in evidence_quotes.items():
 
         score = result["criterion_scores"][criterion]
 
@@ -413,11 +400,6 @@ IMPORTANT:
             )
 
         for quote in quotes:
-
-            if not isinstance(quote, str) or not quote.strip():
-                raise ValueError(
-                    f"Invalid evidence quote for {criterion}."
-                )
 
             normalized_quote = " ".join(quote.split())
 
