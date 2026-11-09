@@ -170,3 +170,46 @@ def review_evaluation(
         "evaluation_id": evaluation.evaluation_id,
         "review_status": evaluation.review_status
     }
+
+
+@app.patch("/requisitions/{requisition_id}/approve")
+def approve_requisition(
+    requisition_id: int,
+    db: Session = Depends(get_db)
+):
+    # Find the requisition
+    requisition = db.query(models.Requisition).filter(
+        models.Requisition.requisition_id == requisition_id
+    ).first()
+
+    if not requisition:
+        raise HTTPException(
+            status_code=404,
+            detail="Requisition not found"
+        )
+
+    # Prevent repeated approval
+    if requisition.status == "Approved":
+        raise HTTPException(
+            status_code=400,
+            detail="Requisition is already approved"
+        )
+
+    # Make sure the rubric exists
+    if not requisition.rubric:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot approve a requisition without a scoring rubric"
+        )
+
+    # Mark requisition as approved
+    requisition.status = "Approved"
+
+    db.commit()
+    db.refresh(requisition)
+
+    return {
+        "message": "Requisition approved successfully",
+        "requisition_id": requisition.requisition_id,
+        "status": requisition.status
+    }

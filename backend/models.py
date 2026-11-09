@@ -1,34 +1,81 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Float, ForeignKey
-from datetime import datetime
 
+from sqlalchemy import (Column,Integer,String,Text,DateTime,JSON,Float,ForeignKey,Boolean)
+from datetime import datetime
 from database import Base
+
+
+# ==========================================
+# 1. REQUISITION MODEL
+# ==========================================
 
 class Requisition(Base):
     __tablename__ = "requisitions"
 
-    requisition_id = Column(Integer, primary_key=True, index=True)
+    requisition_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
     title = Column(String(200), nullable=False)
+
     job_description = Column(Text, nullable=False)
+
+    # Stores weights, must-have/preferred types,
+    # and justifications for each criterion
     rubric = Column(JSON, nullable=True)
+
     status = Column(String(50), default="Open")
+
     created_by = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+# ==========================================
+# 2. CANDIDATE MODEL
+# ==========================================
 
 class Candidate(Base):
     __tablename__ = "candidates"
 
-    candidate_id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
     name = Column(String(150), nullable=False)
+
     email = Column(String(150), nullable=True)
+
     phone = Column(String(30), nullable=True)
+
     resume_path = Column(String(255), nullable=True)
+
     consent_preferences = Column(JSON, nullable=True)
-    current_status = Column(String(100), default="Resume Received")
+
+    current_status = Column(
+        String(100),
+        default="Resume Received"
+    )
+
+
+# ==========================================
+# 3. RESUME EVALUATION MODEL (AGENT 1)
+# ==========================================
 
 class ResumeEvaluation(Base):
     __tablename__ = "resume_evaluations"
 
-    evaluation_id = Column(Integer, primary_key=True, index=True)
+    evaluation_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     candidate_id = Column(
         Integer,
@@ -42,17 +89,77 @@ class ResumeEvaluation(Base):
         nullable=False
     )
 
+    # AI-generated weighted score
     total_score = Column(Float, nullable=False)
-    criterion_scores = Column(JSON, nullable=True)
-    evidence = Column(JSON, nullable=True)
-    warnings = Column(JSON, nullable=True)
-    model_version = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
-    # New field for human review
+    # Individual criterion scores
+    criterion_scores = Column(JSON, nullable=True)
+
+    # Supporting evidence for each criterion
+    evidence = Column(JSON, nullable=True)
+
+    # Structured resume information
+    structured_evidence = Column(JSON, nullable=True)
+    evidence_quotes = Column(JSON, nullable=True)
+    evidence_quality = Column(JSON, nullable=True)
+    scoring_review_details = Column(JSON, nullable=True)
+
+    # AI warnings
+    warnings = Column(JSON, nullable=True)
+
+    # Missing or unclear qualifications
+    missing_or_unclear_items = Column(
+        JSON,
+        nullable=True
+    )
+
+    # Resume extraction warnings
+    parsing_warnings = Column(
+        JSON,
+        nullable=True
+    )
+
+    # Recommendation for human verification
+    recommendation_for_human_review = Column(
+        Text,
+        nullable=True
+    )
+
+    # Azure model deployment identifier
+    model_version = Column(
+        String(100),
+        nullable=True
+    )
+
+    # Human approval status
     review_status = Column(
         String(30),
         default="Pending HR Review",
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+# ==========================================
+# 4. SCREENING MODEL (AGENT 2 - LATER)
+# ==========================================
+
+class Screening(Base):
+    __tablename__ = "screenings"
+
+    screening_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidates.candidate_id"),
         nullable=False
     )
 
@@ -62,10 +169,24 @@ class ResumeEvaluation(Base):
         nullable=False
     )
 
-    total_score = Column(Float, nullable=False)
-    criterion_scores = Column(JSON, nullable=True)
-    evidence = Column(JSON, nullable=True)
-    warnings = Column(JSON, nullable=True)
+    questions = Column(JSON, nullable=True)
 
-    model_version = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    answers = Column(JSON, nullable=True)
+
+    summary = Column(Text, nullable=True)
+
+    consent_given = Column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+
+    status = Column(
+        String(50),
+        default="Pending Consent"
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
