@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Float, ForeignKey
 from datetime import datetime
 
 from database import Base
@@ -25,4 +25,47 @@ class Candidate(Base):
     consent_preferences = Column(JSON, nullable=True)
     current_status = Column(String(100), default="Resume Received")
 
-    
+class ResumeEvaluation(Base):
+    __tablename__ = "resume_evaluations"
+
+    evaluation_id = Column(Integer, primary_key=True, index=True)
+
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidates.candidate_id"),
+        nullable=False
+    )
+
+    requisition_id = Column(
+        Integer,
+        ForeignKey("requisitions.requisition_id"),
+        nullable=False
+    )
+
+    total_score = Column(Float, nullable=False)
+    criterion_scores = Column(JSON, nullable=True)
+    evidence = Column(JSON, nullable=True)
+    warnings = Column(JSON, nullable=True)
+    model_version = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # New field for human review
+    review_status = Column(
+        String(30),
+        default="Pending HR Review",
+        nullable=False
+    )
+
+    requisition_id = Column(
+        Integer,
+        ForeignKey("requisitions.requisition_id"),
+        nullable=False
+    )
+
+    total_score = Column(Float, nullable=False)
+    criterion_scores = Column(JSON, nullable=True)
+    evidence = Column(JSON, nullable=True)
+    warnings = Column(JSON, nullable=True)
+
+    model_version = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -39,3 +39,24 @@ class CandidateResponse(BaseModel):
     resume_path: Optional[str] = None
     consent_preferences: Optional[dict] = None
     current_status: str
+
+class ResumeEvaluationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    review_status: str
+    evaluation_id: int
+    candidate_id: int
+    requisition_id: int
+    total_score: float
+    criterion_scores: dict
+    evidence: dict
+    warnings: list
+    model_version: Optional[str] = None
+
+from typing import Literal
+
+class EvaluationReviewRequest(BaseModel):
+    review_status: Literal[
+        "Approved for Screening",
+        "Needs Manual Review"
+    ]
+

@@ -128,3 +128,45 @@ async def upload_resume(
         "candidate_id": candidate.candidate_id,
         "resume_path": candidate.resume_path
     }
+
+# Retrieve all saved resume evaluations
+@app.get(
+    "/evaluations",
+    response_model=list[schemas.ResumeEvaluationResponse]
+)
+def get_evaluations(db: Session = Depends(get_db)):
+
+    evaluations = db.query(
+        models.ResumeEvaluation
+    ).all()
+
+    return evaluations
+
+@app.patch("/evaluations/{evaluation_id}/review")
+def review_evaluation(
+    evaluation_id: int,
+    review: schemas.EvaluationReviewRequest,
+    db: Session = Depends(get_db)
+):
+    # Find the evaluation
+    evaluation = db.query(models.ResumeEvaluation).filter(
+        models.ResumeEvaluation.evaluation_id == evaluation_id
+    ).first()
+
+    if not evaluation:
+        raise HTTPException(
+            status_code=404,
+            detail="Evaluation not found"
+        )
+
+    # Update HR review status
+    evaluation.review_status = review.review_status
+
+    db.commit()
+    db.refresh(evaluation)
+
+    return {
+        "message": "HR review updated successfully",
+        "evaluation_id": evaluation.evaluation_id,
+        "review_status": evaluation.review_status
+    }
