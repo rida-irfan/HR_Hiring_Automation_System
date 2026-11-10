@@ -125,3 +125,69 @@ class EvaluationReviewRequest(BaseModel):
         "Approved for Screening",
         "Needs Manual Review"
     ]
+
+# ==========================================
+# AGENT 2 - SCREENING QUESTION SCHEMAS
+# ==========================================
+
+class ScreeningQuestionCreate(BaseModel):
+    requisition_id: int
+    question_text: str
+    category: str
+
+
+class ScreeningQuestionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    question_id: int
+    requisition_id: int
+    question_text: str
+    category: str
+    is_approved: bool
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    created_at: datetime
+
+
+from pydantic import BaseModel, EmailStr, Field
+
+class HRSignup(BaseModel):
+    full_name: str = Field(min_length=2, max_length=150)
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=128)
+
+
+class HRResponse(BaseModel):
+    hr_id: int
+    full_name: str
+    email: EmailStr
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class HRLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class InvitationCreate(BaseModel):
+    screening_id: int = Field(gt=0)
+
+
+class InvitationResponse(BaseModel):
+    invitation_id: int
+    candidate_id: int
+    screening_id: int
+    status: str
+    expires_at: datetime
+    interview_link: str
+
+
+class InvitationRedeem(BaseModel):
+    token: str = Field(min_length=20, max_length=256)

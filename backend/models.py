@@ -145,7 +145,7 @@ class ResumeEvaluation(Base):
 
 
 # ==========================================
-# 4. SCREENING MODEL (AGENT 2 - LATER)
+# 4. SCREENING MODEL (AGENT 2)
 # ==========================================
 
 class Screening(Base):
@@ -169,24 +169,220 @@ class Screening(Base):
         nullable=False
     )
 
+    evaluation_id = Column(
+        Integer,
+        ForeignKey("resume_evaluations.evaluation_id"),
+        nullable=True
+    )
+
+    # HR-approved screening questions
     questions = Column(JSON, nullable=True)
 
+    # Existing fields retained
     answers = Column(JSON, nullable=True)
-
     summary = Column(Text, nullable=True)
+    consent_given = Column(Boolean, default=False, nullable=False)
+    status = Column(String(50), default="Pending Consent")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    consent_given = Column(
+    # Required Agent 2 outputs
+    call_status = Column(
+        String(50),
+        default="Not Started",
+        nullable=False
+    )
+
+    consent_status = Column(
+        String(50),
+        default="Pending",
+        nullable=False
+    )
+
+    question_answer_pairs = Column(JSON, nullable=True)
+
+    candidate_stated_availability = Column(
+        Text,
+        nullable=True
+    )
+
+    role_requirement_responses = Column(
+        JSON,
+        nullable=True
+    )
+
+    unresolved_questions = Column(
+        JSON,
+        nullable=True
+    )
+
+    concise_summary = Column(Text, nullable=True)
+
+    recommended_next_step_for_human_review = Column(
+        Text,
+        nullable=True
+    )
+
+    call_timestamp = Column(DateTime, nullable=True)
+
+    # HR makes the final progression decision
+    review_status = Column(
+        String(50),
+        default="Pending HR Review",
+        nullable=False
+    )
+
+# ==========================================
+# 5. SCREENING QUESTION MODEL (AGENT 2)
+# ==========================================
+
+class ScreeningQuestion(Base):
+    __tablename__ = "screening_questions"
+
+    question_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    requisition_id = Column(
+        Integer,
+        ForeignKey("requisitions.requisition_id"),
+        nullable=False
+    )
+
+    question_text = Column(
+        Text,
+        nullable=False
+    )
+
+    category = Column(
+        String(50),
+        nullable=False
+    )
+
+    is_approved = Column(
         Boolean,
         default=False,
         nullable=False
     )
 
-    status = Column(
-        String(50),
-        default="Pending Consent"
+    approved_by = Column(
+        String(100),
+        nullable=True
+    )
+
+    approved_at = Column(
+        DateTime,
+        nullable=True
     )
 
     created_at = Column(
         DateTime,
         default=datetime.utcnow
+    )    
+
+
+# ==========================================
+# 6. HR USER MODEL (AUTHENTICATION)
+# ==========================================
+
+class HRUser(Base):
+    __tablename__ = "hr_users"
+
+    hr_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    full_name = Column(
+        String(150),
+        nullable=False
+    )
+
+    email = Column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False
+    )
+
+    hashed_password = Column(
+        String(255),
+        nullable=False
+    )
+
+    is_active = Column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+# ==========================================
+# 7. INTERVIEW INVITATION MODEL (AGENT 2)
+# ==========================================
+
+class InterviewInvitation(Base):
+    __tablename__ = "interview_invitations"
+
+    invitation_id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidates.candidate_id"),
+        nullable=False
+    )
+
+    screening_id = Column(
+        Integer,
+        ForeignKey("screenings.screening_id"),
+        nullable=False
+    )
+
+    # Store token hash, never the actual token
+    token_hash = Column(
+        String(64),
+        unique=True,
+        index=True,
+        nullable=False
+    )
+
+    # Invitation expiry time (UTC)
+    expires_at = Column(
+        DateTime,
+        nullable=False
+    )
+
+    # Track whether the link has been redeemed
+    used_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    # Invitation delivery and lifecycle
+    status = Column(
+        String(50),
+        default="Pending",
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    sent_at = Column(
+        DateTime,
+        nullable=True
     )
