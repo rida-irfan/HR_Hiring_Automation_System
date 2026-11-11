@@ -1,6 +1,7 @@
 from datetime import datetime
 from security import verify_password, create_access_token
 from fastapi import FastAPI, Depends, Header,UploadFile, File, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from sqlalchemy.orm import Session
 import uuid
@@ -18,6 +19,7 @@ from invitation_security import create_candidate_session_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from invitation_security import verify_candidate_session_token
 import jwt
+from services.elevenlabs_service import get_signed_conversation_url
 from invitation_security import (
     generate_invitation_token,
     hash_invitation_token,
@@ -38,6 +40,19 @@ Base.metadata.create_all(bind=engine)
 # Create FastAPI application
 app = FastAPI(title="HR Hiring Automation System")
 
+# Allow React frontend to communicate with FastAPI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Resume upload directory
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -958,6 +973,84 @@ def get_candidate_session(
         "consent_status": screening.consent_status
     }
 
+
+# ==========================================
+# AGENT 2 - CANDIDATE INTERVIEW CONSENT
+# ==========================================
+
+@app.post("/candidate-interview/consent")
+def give_interview_consent(
+    request: schemas.InterviewConsentRequest,
+    screening: models.Screening = Depends(
+        get_current_candidate_session
+    ),
+    db: Session = Depends(get_db)
+):
+    if screening.call_status in ["Completed", "In Progress"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Interview has already started or completed"
+        )
+
+    if not request.consent:
+        screening.consent_given = False
+        screening.consent_status = "Declined"
+        db.commit()
+
+        return {
+            "message": "Consent declined. Interview will not start."
+        }
+
+    screening.consent_given = True
+    screening.consent_status = "Granted"
+    db.commit()
+
+    return {
+        "message": "Interview consent recorded successfully"
+    }
+
+
+# ==========================================
+# AGENT 2 - START VOICE INTERVIEW
+# ==========================================
+
+@app.post("/candidate-interview/start")
+async def start_candidate_interview(
+    screening: models.Screening = Depends(
+        get_current_candidate_session
+    ),
+    db: Session = Depends(get_db)
+):
+    if not screening.consent_given or screening.consent_status != "Granted":
+        raise HTTPException(
+            status_code=403,
+            detail="Candidate consent is required"
+        )
+
+    if screening.call_status in ["Completed", "In Progress"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Interview has already started or completed"
+        )
+
+    try:
+        signed_url = await get_signed_conversation_url()
+
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to connect to ElevenLabs"
+        )
+
+    screening.call_status = "In Progress"
+    screening.call_timestamp = datetime.utcnow()
+    db.commit()
+
+    return {
+        "message": "Voice interview connection authorized",
+        "screening_id": screening.screening_id,
+        "signed_url": signed_url
+    }
 
 
    

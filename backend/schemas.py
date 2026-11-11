@@ -191,3 +191,7 @@ class InvitationResponse(BaseModel):
 
 class InvitationRedeem(BaseModel):
     token: str = Field(min_length=20, max_length=256)
+
+
+class InterviewConsentRequest(BaseModel):
+    consent: bool
